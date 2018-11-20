@@ -1,68 +1,97 @@
 package ie.keithchambers;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.DataInputStream;
 import java.net.Socket;
 import java.util.concurrent.ArrayBlockingQueue;
 
-interface ConnectionHandlerCommand
-{
-    public void operation();
-}
- 
 public class ConnectionHandler extends Thread
 {
-    public ConnectionHandler(Socket connection)
+    public ConnectionHandler(ConnectionHandlerInterface serverCallbacks, Socket connection)
     {
         ID = nextID++;
         this.connection = connection;
-        connectionCommandQueue = new ArrayBlockingQueue<ConnectionHandlerCommand>(MAX_COMMAND_QUEUE_SIZE);
-    }
-    
-    public void run()
-    {
-        String inputLine;
-        
+        serverInterface = serverCallbacks;
+        serverInterface.setConnectionHandlerOnce(this);
+
+        connectionCommandQueue = new ArrayBlockingQueue<Command>(MAX_COMMAND_QUEUE_SIZE);
+
         try
         {
-            connectionInputStream = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            connectionInputStream = new DataInputStream(connection.getInputStream());
         }catch(Exception e)
-        { 
+        {
             System.out.println("Fatal Exception: " + e.toString());
             return;
         }
-        
+
+        System.out.println("New Connection made");
+    }
+
+    // TODO: Implement
+    public boolean inputStreamEmpty()
+    {
+        return true;
+    }
+
+    public DataInputStream getInputStream()
+    {
+        return connectionInputStream;
+    }
+
+    public void run()
+    {
         while(! terminated)
         {
             try
             {
-                if(connectionInputStream.ready())
+                /* Check if there is data in input stream. Non blocking. */
+                if(connectionInputStream.available() > 0)
                 {
-                    inputLine = connectionInputStream.readLine();
-                    System.out.println("Connection #" + String.valueOf(ID) + ":" + inputLine);
+                    /* Inform the server that a client request has been received */
+                    System.out.println("Data available in connection input buffer");
+                    serverInterface.onAddCommand( () -> { serverInterface.onClientRequest(); } );
+                    Thread.sleep(100);
                 }
             }catch(Exception e){ System.out.println("Exception: " + e.toString() ); }
+
+            /* Keep executing commands from command queue until it's empty */
+            while(connectionCommandQueue.size() > 0)
+            {
+                try {
+                    Command command = connectionCommandQueue.take();
+                    command.execute();
+                } catch(Exception e){
+                    System.out.println("Failed to get ConnectionHandler command from queue");
+                }
+            }
         }
-        
-        System.out.println("Connection #" + String.valueOf(ID) + " terminating successfully");
+
+        System.out.println("Connection #" + String.valueOf(ID) + " terminated successfully");
     }
-    
+
+    public void addCommand(Command command)
+    {
+        connectionCommandQueue.add(command);
+    }
+
     public void terminate()
     {
         terminated = true;
     }
-    
+
     public int getID()
     {
         return ID;
     }
-    
-    // Commands to be executed by all connection handlers go in here
-    private ArrayBlockingQueue<ConnectionHandlerCommand> connectionCommandQueue;
-    private Socket connection; 
-    private BufferedReader connectionInputStream;
+
+    /* Private Command Queue for connection */
+    private ArrayBlockingQueue<Command> connectionCommandQueue;
+    private ConnectionHandlerInterface serverInterface;
+    private Socket connection;
+    private DataInputStream connectionInputStream;
     private final int ID;
     private static int nextID = 0;
+    private static final int BUFFER_SIZE = 200;
     private boolean terminated = false;
     private final int MAX_COMMAND_QUEUE_SIZE = 10;
 }
