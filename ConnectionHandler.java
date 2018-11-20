@@ -1,6 +1,7 @@
 package ie.keithchambers;
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.net.Socket;
 import java.util.concurrent.ArrayBlockingQueue;
 
@@ -18,6 +19,8 @@ public class ConnectionHandler extends Thread
         try
         {
             connectionInputStream = new DataInputStream(connection.getInputStream());
+            connectionOutputStream = new DataOutputStream(connection.getOutputStream());
+
         }catch(Exception e)
         {
             System.out.println("Fatal Exception: " + e.toString());
@@ -30,12 +33,22 @@ public class ConnectionHandler extends Thread
     // TODO: Implement
     public boolean inputStreamEmpty()
     {
-        return true;
+        try {
+            return (connectionInputStream.available() <= 0);
+        } catch (Exception e){
+            System.out.println("Error in inputStreamEmpty");
+            return true;
+        }
     }
 
     public DataInputStream getInputStream()
     {
         return connectionInputStream;
+    }
+
+    public DataOutputStream getOutputStream()
+    {
+        return connectionOutputStream;
     }
 
     public void run()
@@ -50,7 +63,7 @@ public class ConnectionHandler extends Thread
                     /* Inform the server that a client request has been received */
                     System.out.println("Data available in connection input buffer");
                     serverInterface.onAddCommand( () -> { serverInterface.onClientRequest(); } );
-                    Thread.sleep(100);
+                    Thread.sleep(500);
                 }
             }catch(Exception e){ System.out.println("Exception: " + e.toString() ); }
 
@@ -89,6 +102,7 @@ public class ConnectionHandler extends Thread
     private ConnectionHandlerInterface serverInterface;
     private Socket connection;
     private DataInputStream connectionInputStream;
+    private DataOutputStream connectionOutputStream;
     private final int ID;
     private static int nextID = 0;
     private static final int BUFFER_SIZE = 200;

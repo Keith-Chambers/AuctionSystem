@@ -133,6 +133,7 @@ public class CommandLineListener extends Thread
 
                     System.out.print(COMMAND_PROMPT);
                 }
+
                 Thread.sleep(100);
 
             } catch (Exception e){ System.out.println("Exception: " + e.toString()); }

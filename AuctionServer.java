@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.net.Socket;
 import java.util.Iterator;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 
 /* Deals with high level commands and overall management of state */
 public class AuctionServer
@@ -20,44 +21,6 @@ public class AuctionServer
         items = new ArrayBlockingQueue<AuctionItem>(ITEM_QUEUE_SIZE);
         commandQueue = new ArrayBlockingQueue<Command>(COMMAND_QUEUE_SIZE);
         activeConnections = new ArrayList<ConnectionHandler>(MAX_ACTIVE_CONNECTIONS);
-
-        connectionHandlerCommandCallbacks = new ConnectionHandlerInterface()
-        {
-            @Override
-            public void onClientRequest()
-            {
-                System.out.println("Processing onClientRequest in Server Object");
-                try
-                {
-                    DataInputStream connectionInputStream = connection.getInputStream();
-                    byte inputCode = connectionInputStream.readByte();
-
-                    switch(inputCode)
-                    {
-                    /* Termination code */
-                    case 0:
-                        connection.terminate();
-                        break;
-                    /* List Items Code */
-                    case 1:
-                        System.out.println("Client requesting list items");
-                        break;
-                    /* Bid Code */
-                    case 2:
-                        Double bidAmount = connectionInputStream.readDouble();
-                        System.out.println("Client bid £" + String.valueOf(bidAmount));
-                        break;
-                    default:
-                        System.out.println("Invalid data from client");
-                    }
-
-                    // connectionInputStream.skipBytes(100);
-                } catch(Exception e){ System.out.println("Error: " + e.toString()); }
-            }
-
-            @Override
-            public void onAddCommand(Command command){ commandQueue.add(command); }
-        };
     }
 
     public void start()
@@ -119,7 +82,7 @@ public class AuctionServer
                     return;
                 }
 
-                ConnectionHandler conn = new ConnectionHandler(connectionHandlerCommandCallbacks, connection);
+                ConnectionHandler conn = new ConnectionHandler(new ConnectionHandlerInterface(this), connection);
                 /* Start the Thread */
                 conn.start();
                 activeConnections.add(conn);
@@ -147,10 +110,22 @@ public class AuctionServer
             if(commandQueue.size() > 0)
             {
                 try {
-                command = commandQueue.take();
-                command.execute();
+                    // TODO: Remove
+                    int startSize = commandQueue.size();
+                    command = commandQueue.take();
+                    command.execute();
+                    int endSize = commandQueue.size();
 
-                } catch(Exception e){ System.out.println("Exception: " + e.toString() ); }
+                    if(startSize != endSize + 1)
+                    {
+                        System.out.println("Error: Command was not taken from queue in server");
+                    }
+
+                } catch(Exception e){
+                    System.out.println("Exception: " + e.toString() );
+                    /* Take out bad command */
+                    try { commandQueue.take(); } catch(Exception e_){ System.out.println("Second Exception failed : " + e_.toString()); }
+                }
             }
 
             /* Check if auction item needs to be closed */
@@ -164,16 +139,17 @@ public class AuctionServer
                 }
             }
 
-            try
-            {
-                // TODO: Decide if this should be here
-                Thread.sleep(100); // Allow thread to sleep for a while
-
-            }catch(Exception e)
-            {
-                System.out.println("Exception: " + e.toString() );
-            }
         }
+    }
+
+    public ArrayBlockingQueue<Command> getCommandQueue()
+    {
+        return commandQueue;
+    }
+
+    public double getCurrentWinningBidAmount()
+    {
+        return currentItemBidAmount;
     }
 
     private AddCommandHook addCommandHook;
@@ -182,11 +158,12 @@ public class AuctionServer
     private ConnectionListener connectionListener = null;
     private ArrayBlockingQueue<AuctionItem> items;
     private ArrayList<ConnectionHandler> activeConnections;
-    private ConnectionHandlerInterface connectionHandlerCommandCallbacks;
 
     private boolean terminate = false;
 
     private long currentItemCloseTimestamp;
+    private Double currentItemBidAmount;
+    private String currentItemBidWinnerUsername;
 
     private final int ITEM_QUEUE_SIZE = 15;
     private final int COMMAND_QUEUE_SIZE = 20;
