@@ -22,73 +22,6 @@ public class AuctionServer
         commandQueue = new ArrayBlockingQueue<Command>(COMMAND_QUEUE_SIZE);
         activeConnections = new ArrayList<ConnectionHandler>(MAX_ACTIVE_CONNECTIONS);
 
-        // Create command line listener
-        commandLineListener = new CommandLineListener(new CommandLineInterface()
-                {
-                    @Override
-                    public void onTerminate(){ terminate(); }
-
-                    @Override
-                    public boolean onStartAuction()
-                    {
-                        if(canStartAuction())
-                        {
-                            /* Start connection listener thread to allow for connections */
-                            connectionListener.start();
-                            System.out.println("Auction successfully started");
-                            return true;
-                        }
-
-                        return false;
-                    }
-
-                    @Override
-                    public void onNewItem(String name, String desc, int timeoutPeriod)
-                    {
-                        items.add(new AuctionItem(name, desc, timeoutPeriod));
-                        System.out.println("New Item Added");
-                    }
-
-                    @Override
-                    public void onRequestItems()
-                    {
-                        Iterator<AuctionItem> itr = items.iterator();
-                        int i = 1;
-                        while(itr.hasNext())
-                        {
-                            System.out.println(String.valueOf(i) + ": " + itr.next().getName());
-                            i++;
-                        }
-                    }
-
-                    @Override
-                    public void loadItemsFromFile(String filePath)
-                    {
-                        loadItemsFromFile(filePath);
-                    }
-
-                    @Override
-                    public void saveItemsToFile(String filePath)
-                    {
-                        saveItemsToFile(filePath);
-                    }
-
-                    @Override
-                    public void onAddCommand(Command command){ commandQueue.add(command); }
-        });
-
-        commandLineListener.start();
-
-        // TODO: Remove
-        //items.add(new AuctionItem("item1", "desc1", 20));
-        //items.add(new AuctionItem("item2", "desc2", 15));
-
-        //saveItemsToFile("./blah.bin");
-
-        //items.clear();
-
-        //loadItemsFromFile("./blah.bin");
-
         start();
     }
 
@@ -250,13 +183,13 @@ public class AuctionServer
 
                 /* Add item to queue */
                 items.add(new AuctionItem(new String(nameByteArray, "UTF-8"), new String(descByteArray, "UTF-8"), (int) timeoutPeriod[0]));
-
-
             }
+
+            System.out.println("File successfully loaded");
 
         } catch(Exception e)
         {
-            System.out.println("Error: " + e.toString());
+            System.out.println("Error failed to load items from file: " + e.toString());
         }finally
         {
             /* Close file if error occurred */
@@ -266,7 +199,7 @@ public class AuctionServer
             } catch(Exception e) { System.out.println(e.toString()); }
         }
 
-        System.out.println("File successfully loaded");
+
 
     }
 
@@ -290,7 +223,65 @@ public class AuctionServer
 
     private void init()
     {
-        // Create connection listener
+        /* Initialize command line listener with desired overrides for CommandLineListener interface */
+        commandLineListener = new CommandLineListener(new CommandLineInterface()
+                {
+                    @Override
+                    public void onTerminate(){ terminate(); }
+
+                    @Override
+                    public boolean onStartAuction()
+                    {
+                        if(canStartAuction())
+                        {
+                            /* Start connection listener thread to allow for connections */
+                            connectionListener.start();
+                            System.out.println("Auction successfully started");
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                    @Override
+                    public void onNewItem(String name, String desc, int timeoutPeriod)
+                    {
+                        items.add(new AuctionItem(name, desc, timeoutPeriod));
+                        System.out.println("New Item Added");
+                    }
+
+                    @Override
+                    public void onRequestItems()
+                    {
+                        Iterator<AuctionItem> itr = items.iterator();
+                        int i = 1;
+                        while(itr.hasNext())
+                        {
+                            System.out.println(String.valueOf(i) + ": " + itr.next().getName());
+                            i++;
+                        }
+                    }
+
+                    @Override
+                    public void onLoadItemsFromFile(String filePath)
+                    {
+                        loadItemsFromFile(filePath);
+                    }
+
+                    @Override
+                    public void onSaveItemsToFile(String filePath)
+                    {
+                        saveItemsToFile(filePath);
+                    }
+
+                    @Override
+                    public void onAddCommand(Command command){ commandQueue.add(command); }
+        });
+
+        /* Start Command Line Listener on new thread */
+        commandLineListener.start();
+
+        /* Define lambda to override ConnectionListenerInterface */
         ConnectionListenerInterface listenerInterface = (Socket connection) ->
         {
 
@@ -301,17 +292,13 @@ public class AuctionServer
                 }
 
                 ConnectionHandler conn = new ConnectionHandler(new ConnectionHandlerInterface(this), connection);
-                /* Start the Thread */
+                /* Start the Thread & add instance to active connection array */
                 conn.start();
                 activeConnections.add(conn);
 
         };
 
         connectionListener = new ConnectionListener(listenerInterface, DEFAULT_LISTENING_PORT);
-
-        // Runs on a new thread
-        // connectionListener.start();
-        // commandLineListener.start();
     }
 
     public void terminate()
@@ -330,6 +317,7 @@ public class AuctionServer
                 try {
                     // TODO: Remove
                     int startSize = commandQueue.size();
+                    /* Take(Remove) command off queue and execute */
                     command = commandQueue.take();
                     command.execute();
                     int endSize = commandQueue.size();
@@ -341,6 +329,7 @@ public class AuctionServer
 
                 } catch(Exception e){
                     System.out.println("Exception: " + e.toString() );
+                    // TODO: Probably remove
                     /* Take out bad command */
                     try { commandQueue.take(); } catch(Exception e_){ System.out.println("Second Exception failed : " + e_.toString()); }
                 }
@@ -358,8 +347,6 @@ public class AuctionServer
             }
 
         }
-
-        System.out.println("Server loop terminated");
     }
 
     public ArrayBlockingQueue<Command> getCommandQueue()

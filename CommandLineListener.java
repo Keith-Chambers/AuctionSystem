@@ -106,6 +106,8 @@ public class CommandLineListener extends Thread
                                 /* We know the location of item name as it is required */
                                 name = parsedString.get(1);
 
+                                System.out.println("Parsed name : \"" + name + "\"");
+
                                 /* Check the order of the optional parameters and parse */
                                 for(int i = 2; i < parsedString.size(); i++)
                                 {
@@ -132,13 +134,13 @@ public class CommandLineListener extends Thread
                                 if(inputSegments.length < 2)
                                     System.out.println("Err: No file path specified");
                                 else
-                                    cli.loadItemsFromFile("./blah.bin"); // TODO:
+                                    cli.onAddCommand( () -> cli.onLoadItemsFromFile(inputSegments[1]) );
                                 break;
                             case "saveitems":
                                 if(inputSegments.length < 2)
                                     System.out.println("Err: No file path specified");
                                 else
-                                    cli.saveItemsToFile("./blah.bin"); // TODO:
+                                    cli.onAddCommand( () ->cli.onSaveItemsToFile(inputSegments[1]) );
                                 break;
                             default:
                                 System.out.println("Invalid Argument : " + inputSegments[0]);
