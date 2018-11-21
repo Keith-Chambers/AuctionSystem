@@ -79,6 +79,17 @@ public class ConnectionHandler extends Thread
             }
         }
 
+        /* Sends termination code to client so they know connection has been closed */
+        serverInterface.onTerminate();
+
+        /* Clean up resources */
+        try
+        {
+            connectionInputStream.close();
+            connectionOutputStream.close();
+            connection.close();
+        } catch(Exception e){ System.out.println("Warning: Failed to close connection resources -> " + e.toString()); }
+
         System.out.println("Connection #" + String.valueOf(ID) + " terminated successfully");
     }
 
@@ -95,6 +106,11 @@ public class ConnectionHandler extends Thread
     public int getID()
     {
         return ID;
+    }
+
+    public ConnectionHandlerInterface getCommandInterface()
+    {
+        return serverInterface;
     }
 
     /* Private Command Queue for connection */

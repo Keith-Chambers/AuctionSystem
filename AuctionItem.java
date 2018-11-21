@@ -1,5 +1,7 @@
 package ie.keithchambers;
 
+// TODO: Enforce max timeout period
+
 public class AuctionItem
 {
     public AuctionItem(String name)

@@ -88,6 +88,9 @@ public class CommandLineListener extends Thread
                     {
                         switch(inputSegments[0])
                         {
+                            case "clear":
+                                System.out.print("\033[H\033[2J");
+                                break;
                             case "additem":
                                 ArrayList<String> parsedString = splitQuotedStringBySpace(inputLine);
 
@@ -124,7 +127,7 @@ public class CommandLineListener extends Thread
                             case "listitems":
                                 cli.onRequestItems();
                                 break;
-                            case "start-auction":
+                            case "startauction":
                                     if(auctionRunning == true)
                                         System.out.println("Auction already running");
                                     else
@@ -166,7 +169,7 @@ public class CommandLineListener extends Thread
     private final String usageString =
     "Usage: command args..\n" +
     "  commands: \n" +
-    "    start-auction  -- starts the auction\n" +
+    "    startauction  -- starts the auction\n" +
     "    additem <\"itemname\"> [-d <\"itemdescription\">] [-t <timeoutperiod>] -- Adds a new item at end of auction queue\n" +
     "    loaditems <filepath> -- Loads a list of items from binary file\n" +
     "    saveitems <filepath> -- Saves current items in a file to be loaded later\n" +

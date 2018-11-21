@@ -3,6 +3,8 @@ package ie.keithchambers;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 
 public class ConnectionHandlerInterface
 {
@@ -31,13 +33,13 @@ public class ConnectionHandlerInterface
             return false;
         }
     }
+
     public void onClientRequest()
     {
         System.out.println("Processing onClientRequest in Server Object");
         try
         {
             DataInputStream connectionInputStream = connection.getInputStream();
-            System.out.println("Hash: " + System.identityHashCode(connectionInputStream));
 
             if(connection.inputStreamEmpty())
             {
@@ -58,18 +60,81 @@ public class ConnectionHandlerInterface
                 break;
             /* List Items Code */
             case 1:
-                System.out.println("Client requesting list items");
-                DataOutputStream out = connection.getOutputStream();
-                // Order
-                // Number of Items
+                try
+                {
+                    System.out.println("Client requesting list items");
+                    DataOutputStream out = connection.getOutputStream();
 
-                // For each item
-                // Name, description, duration
+                    /* Write response code */
+                    out.writeByte(3);
 
-                // Current item info:
-                // Username size
-                // Username
-                // Bid amount
+                    /* Temp array buffer for storing integers */
+                    ByteBuffer intBuffer = ByteBuffer.allocate(4);
+
+                    ByteBuffer longBuffer = ByteBuffer.allocate(8);
+
+                    long currItemTimeoutStart = server.getCurrentItemTimeoutStart();
+                    longBuffer.putLong(0, currItemTimeoutStart);
+                    out.write(longBuffer.array(), 0, 8);
+
+                    // Current item info:
+                    // Username size (0 if no bids + skip next two fields)
+                    // Username
+                    // Bid amount
+                    String currBidWinnerUsername = server.getCurrentWinningBidUsername();
+                    if(currBidWinnerUsername.length() == 0)
+                    {
+                        // No bids made. output username length of 0
+                        intBuffer.putInt(0, 0);
+                        out.write(intBuffer.array(), 0, 4);
+                    }else
+                    {
+                        intBuffer.putInt(0, currBidWinnerUsername.length());
+                        out.write(intBuffer.array(), 0, 4);
+                        out.write(currBidWinnerUsername.getBytes(), 0, currBidWinnerUsername.length());
+
+                        Double currBidAmount = server.getCurrentWinningBidAmount();
+                        ByteBuffer doubleBuffer = ByteBuffer.allocate(8);
+                        doubleBuffer.putDouble(0, currBidAmount);
+
+                        out.write(doubleBuffer.array(), 0, 8);
+                    }
+
+                    intBuffer.putInt(0, server.getNumItems());
+
+                    /* Write number of Items */
+                    out.write(intBuffer.array(), 0, 4);
+
+                    for(int i = 0; i < server.getNumItems(); i++)
+                    {
+                        String itemName = server.getItem(i).getName();
+                        String itemDesc = server.getItem(i).getDescription();
+                        int itemTimeoutPeriod = server.getItem(i).getTimeoutPeriod();
+
+                        /* Get and write length of item name */
+                        intBuffer.putInt(0, itemName.length());
+                        out.write(intBuffer.array(), 0, 4);
+
+                        /* Write name string */
+                        out.write(itemName.getBytes(Charset.forName("UTF-8")), 0, itemName.length());
+
+                        /* Get and write length of item description */
+                        intBuffer.putInt(0, itemDesc.length());
+                        out.write(intBuffer.array(), 0, 4);
+
+                        /* Write Description string */
+                        out.write(itemDesc.getBytes(Charset.forName("UTF-8")), 0, itemDesc.length());
+
+                        /* Write timeout period */
+                        out.write(itemTimeoutPeriod);
+                    }
+
+                    out.flush();
+
+                } catch(Exception e)
+                {
+                    System.out.println("Warning: Failed to handle list items request from client -> " + e.toString());
+                }
 
                 break;
             /* Bid Code */
@@ -126,6 +191,59 @@ public class ConnectionHandlerInterface
     public void onAddCommand(Command command)
     {
         serverCommandQueue.add(command);
+    }
+
+    public void onItemTimedOut(AuctionItem item, String winnerUsername, double winnerBidAmount)
+    {
+        System.out.println("Time out code executed");
+        DataOutputStream out = connection.getOutputStream();
+
+        /* Temp array buffers for storing integers and doubles */
+        ByteBuffer intBuffer = ByteBuffer.allocate(4);
+        ByteBuffer doubleBuffer = ByteBuffer.allocate(8);
+
+        intBuffer.putInt(0, winnerUsername.length());
+        doubleBuffer.putDouble(0, winnerBidAmount);
+
+        try
+        {
+            /* Write item timeout code for client */
+            out.write(2);
+
+            /* Length of username */
+            out.write(intBuffer.array(), 0, 4);
+
+            /* If username length = 0, then no one won the item so emit username + bid amount fields */
+            if(winnerUsername.length() != 0)
+            {
+                out.write(winnerUsername.getBytes(), 0, winnerUsername.length());
+                out.write(doubleBuffer.array(), 0, 8);
+            }
+
+            /* Get and write length of item name */
+            intBuffer.putInt(0, item.getName().length());
+            out.write(intBuffer.array(), 0, 4);
+
+            /* Write name string */
+            out.write(item.getName().getBytes(Charset.forName("UTF-8")), 0, item.getName().length());
+
+            out.flush();
+
+        } catch(Exception e){ System.out.println("Warning: Failed to send item timeout to client -> " + e.toString()); }
+    }
+
+    public void onTerminate()
+    {
+        DataOutputStream out = connection.getOutputStream();
+        byte[] terminationCodeByteArray = new byte[1];
+        terminationCodeByteArray[0] = (byte)0;
+
+        try
+        {
+            out.write(terminationCodeByteArray, 0, 1);
+            out.flush();
+        } catch(Exception e){ System.out.println("Warning: Failed to write termination code to client -> " + e.toString()); }
+
     }
 
     private AuctionServer server;

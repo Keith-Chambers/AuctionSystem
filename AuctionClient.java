@@ -14,6 +14,12 @@ public class AuctionClient
     {
         boolean terminate = false;
 
+        String currentBidWinnerUsername = null;
+        Double currentBidWinnerAmount = null;
+        boolean itemHasBidWinner = false;
+        String username = null;
+        AuctionItem[] items = null;
+
         System.out.println("Client Started");
 
         if(args.length < 2)
@@ -26,7 +32,7 @@ public class AuctionClient
 
         System.out.println("Enter username(If blank username will be chosen for you): ");
         // TODO: enforce username length < 256
-        String username = inputReader.readLine();
+        username = inputReader.readLine();
 
         String host = args[0];
         int port = Integer.valueOf(args[1]);
@@ -137,12 +143,105 @@ public class AuctionClient
                             break;
                         /* Item timeout */
                         case 2:
-                            System.out.println("Item has timed out");
+                        {
+                            System.out.println("Item timed out");
+
+                            String winnerUsername = null;
+                            String itemName = null;
+                            double winnerBidAmount = -1.0;
+
+                            int usernameLength = connectionInputStream.readInt();
+
+                            if(usernameLength != 0)
+                            {
+                                byte[] winnerUsernameByteArray = new byte[usernameLength];
+                                connectionInputStream.read(winnerUsernameByteArray, 0, usernameLength);
+                                winnerUsername = new String(winnerUsernameByteArray);
+                                winnerBidAmount = connectionInputStream.readDouble();
+                            }
+
+                            int itemNameLength = connectionInputStream.readInt();
+                            byte[] itemNameByteArray = new byte[itemNameLength];
+                            connectionInputStream.read(itemNameByteArray, 0, itemNameLength);
+
+                            itemName = new String(itemNameByteArray, "UTF-8");
+
+                            if(usernameLength == 0)
+                                System.out.println("No one won " + itemName + ". Returned to back of auction item queue");
+                            else
+                                System.out.println(itemName + " was won by " + winnerUsername + " for £" + String.valueOf(winnerBidAmount));
+
+                            if(connectionInputStream.available() > 0)
+                                System.out.println("Warning: Bytes still available in input buffer after item timeout response");
+                                
                             break;
+                        }
                         /* Auction state */
                         case 3:
-                            System.out.println("Auction state received");
+                            System.out.println("Receiving Auction state");
+
+                            long currItemTimeoutStart = connectionInputStream.readLong();
+                            System.out.println("Boop");
+
+                            // Get username length
+                            int winnerUsernameLength = connectionInputStream.readInt();
+                            System.out.println("Winner Username Length : " + String.valueOf(winnerUsernameLength));
+
+                            // If 0, no winner and skip next two
+                            // Get username
+                            // Get bid
+                            if(winnerUsernameLength == 0)
+                            {
+                                itemHasBidWinner = false;
+                                currentBidWinnerUsername = "";
+                                currentBidWinnerAmount = -1.0;
+                            }else
+                            {
+                                byte[] currentWinnerUsernameByteArray = new byte[winnerUsernameLength];
+                                connectionInputStream.read(currentWinnerUsernameByteArray, 0, winnerUsernameLength);
+                                currentBidWinnerUsername = new String(currentWinnerUsernameByteArray, "UTF-8");
+                                currentBidWinnerAmount = connectionInputStream.readDouble();
+
+                                System.out.println("Winner Username : " + currentBidWinnerUsername);
+                                System.out.println("Bid Amount : " + String.valueOf(currentBidWinnerAmount));
+                            }
+
+                            int numberOfItems = connectionInputStream.readInt();
+                            items = new AuctionItem[numberOfItems];
+
+                            System.out.println("Number of items on Auction : " + String.valueOf(numberOfItems));
+
+                            for(int i = 0; i < numberOfItems; i++)
+                            {
+                                int itemNameLength = connectionInputStream.readInt();
+                                byte[] itemNameByteArray = new byte[itemNameLength];
+                                connectionInputStream.read(itemNameByteArray, 0, itemNameLength);
+
+                                int itemDescLength = connectionInputStream.readInt();
+                                byte[] itemDescByteArray = new byte[itemDescLength];
+                                connectionInputStream.read(itemDescByteArray, 0, itemDescLength);
+
+                                int timeoutPeriod = (int) connectionInputStream.readByte();
+
+                                System.out.println("Item #" + String.valueOf(i + 1));
+
+
+                                items[i] = new AuctionItem( new String(itemNameByteArray, "UTF-8"),
+                                                            new String(itemDescByteArray, "UTF-8"),
+                                                            timeoutPeriod);
+
+                                System.out.println("    Name : " + items[i].getName());
+                                System.out.println("    Desc : " + items[i].getDescription());
+                                System.out.println("    Timeout Seconds : " + String.valueOf(items[i].getTimeoutPeriod()));
+                            }
+
+                            System.out.println("State updated from server successfully");
+                            if(connectionInputStream.available() > 0)
+                                System.out.println("Warning: Bytes still left in input buffer after getting state from server");
+
                             break;
+                        default:
+                        System.out.println("Invalid key code recieved from server");
                     }
                 }
 
