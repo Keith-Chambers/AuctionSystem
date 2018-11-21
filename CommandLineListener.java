@@ -68,7 +68,6 @@ public class CommandLineListener extends Thread
         while(! terminate)
         {
 
-
             try {
                 if( inputReader.ready() )
                 {
@@ -123,6 +122,24 @@ public class CommandLineListener extends Thread
                             case "listitems":
                                 cli.onRequestItems();
                                 break;
+                            case "start-auction":
+                                    if(auctionRunning == true)
+                                        System.out.println("Auction already running");
+                                    else
+                                        auctionRunning = cli.onStartAuction();
+                                break;
+                            case "loaditems":
+                                if(inputSegments.length < 2)
+                                    System.out.println("Err: No file path specified");
+                                else
+                                    cli.loadItemsFromFile("./blah.bin"); // TODO:
+                                break;
+                            case "saveitems":
+                                if(inputSegments.length < 2)
+                                    System.out.println("Err: No file path specified");
+                                else
+                                    cli.saveItemsToFile("./blah.bin"); // TODO:
+                                break;
                             default:
                                 System.out.println("Invalid Argument : " + inputSegments[0]);
                             case "help":
@@ -147,10 +164,14 @@ public class CommandLineListener extends Thread
     private final String usageString =
     "Usage: command args..\n" +
     "  commands: \n" +
+    "    start-auction  -- starts the auction\n" +
     "    additem <\"itemname\"> [-d <\"itemdescription\">] [-t <timeoutperiod>] -- Adds a new item at end of auction queue\n" +
+    "    loaditems <filepath> -- Loads a list of items from binary file\n" +
+    "    saveitems <filepath> -- Saves current items in a file to be loaded later\n" +
     "    listitems -- Lists all auction items in order\n" +
     "    q -- Quits application";
 
     private BufferedReader inputReader;
     private final String COMMAND_PROMPT = "AS>";
+    private boolean auctionRunning = false;
 }
