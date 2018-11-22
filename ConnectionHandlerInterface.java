@@ -80,7 +80,7 @@ public class ConnectionHandlerInterface
 
             /* Bid Code */
             case 2:
-                onNewBid();
+                onNewBidRequest();
                 break;
 
             /* Initial connection code */
@@ -115,34 +115,83 @@ public class ConnectionHandlerInterface
                 username = new String(usernameByteString, "UTF-8");
             }
 
+            server.addUsernameFor(username, connection.getID());
+
             System.out.println("User connected : " + username);
 
         } catch(Exception e){ System.out.println("Error: " + e.toString()); }
+    }
 
+    public void onNewBid()
+    {
 
     }
 
-    private void onNewBid()
+    private void onNewBidRequest()
     {
         try
         {
             double bidAmount = connectionInputStream.readDouble();
             System.out.println("Client bid £" + String.valueOf(bidAmount));
 
-            if(bidAmount > server.getCurrentWinningBidAmount())
+            if( ! currentItemHasBid || bidAmount > server.getCurrentWinningBidAmount())
             {
-                // Prepare byte array
-                // Size
-                // 1 for key
-                // 8 for double
-                // 2 for username string len
-                // n for username
-                System.out.println("Doing bid stuff..");
+                server.newCurrentItemBid(connection.getID(), bidAmount);
             } else
             {
-                System.out.println("Warning: Client send in a bid that is too low");
+                onInvalidBid();
             }
         } catch(Exception e){ System.out.println("Error: " + e.toString()); }
+    }
+
+    private void onInvalidBid()
+    {
+        System.out.println("Invalid bit");
+        sendClientMessage("Bid too low. Refresh data to get latest bid on current item");
+    }
+
+    private void sendClientMessage(String message)
+    {
+        try
+        {
+            DataOutputStream out = connection.getOutputStream();
+
+            /* Code for server messages */
+            out.writeByte(5);
+
+            ByteBuffer intBuffer = ByteBuffer.allocate(4);
+            intBuffer.putInt(0, message.length());
+            out.write(intBuffer.array(), 0, 4);
+            out.write(message.getBytes(), 0, message.length());
+
+            out.flush();
+
+        } catch(Exception e)
+        {
+            System.out.println("Warning: Failed to send message to client -> " + e.toString());
+        }
+    }
+
+    private void sendClientErrorMessage(String message)
+    {
+        try
+        {
+            DataOutputStream out = connection.getOutputStream();
+
+            /* Code for error messages */
+            out.writeByte(4);
+
+            ByteBuffer intBuffer = ByteBuffer.allocate(4);
+            intBuffer.putInt(0, message.length());
+            out.write(intBuffer.array(), 0, 4);
+            out.write(message.getBytes(), 0, message.length());
+
+            out.flush();
+
+        } catch(Exception e)
+        {
+            System.out.println("Warning: Failed to send err message to client -> " + e.toString());
+        }
     }
 
     public void onConnectionCreation()
@@ -175,7 +224,7 @@ public class ConnectionHandlerInterface
             // Username
             // Bid amount
             String currBidWinnerUsername = server.getCurrentWinningBidUsername();
-            if(currBidWinnerUsername.length() == 0)
+            if(! currentItemHasBid)
             {
                 // No bids made. output username length of 0
                 intBuffer.putInt(0, 0);
@@ -237,14 +286,20 @@ public class ConnectionHandlerInterface
 
     public void onItemTimedOut(AuctionItem item, String winnerUsername, double winnerBidAmount)
     {
-        System.out.println("Time out code executed");
+        System.out.println("Time out code executed; amount -> " + String.valueOf(winnerBidAmount));
+        System.out.println("Username : " + winnerUsername);
+
         DataOutputStream out = connection.getOutputStream();
 
         /* Temp array buffers for storing integers and doubles */
         ByteBuffer intBuffer = ByteBuffer.allocate(4);
         ByteBuffer doubleBuffer = ByteBuffer.allocate(8);
 
-        intBuffer.putInt(0, winnerUsername.length());
+        /*  We use a username length of 0 to indicate no one won the bid
+            So even if username has a value (Due to Java being a pain with pass by ref)
+            we have to write a value of 0. Thus the new variable */
+        int usernameLength = (currentItemHasBid) ? winnerUsername.length() : 0;
+        intBuffer.putInt(0, usernameLength);
         doubleBuffer.putDouble(0, winnerBidAmount);
 
         try
@@ -255,8 +310,8 @@ public class ConnectionHandlerInterface
             /* Length of username */
             out.write(intBuffer.array(), 0, 4);
 
-            /* If username length = 0, then no one won the item so emit username + bid amount fields */
-            if(winnerUsername.length() != 0)
+            /* Check if someone bid on the item. Only send username and amount if so */
+            if(currentItemHasBid)
             {
                 out.write(winnerUsername.getBytes(), 0, winnerUsername.length());
                 out.write(doubleBuffer.array(), 0, 8);
@@ -270,6 +325,8 @@ public class ConnectionHandlerInterface
             out.write(item.getName().getBytes(Charset.forName("UTF-8")), 0, item.getName().length());
 
             out.flush();
+
+            currentItemHasBid = false;
 
         } catch(Exception e){ System.out.println("Warning: Failed to send item timeout to client -> " + e.toString()); }
     }
@@ -288,8 +345,19 @@ public class ConnectionHandlerInterface
 
     }
 
+    public void setCurrentItemHasBid(boolean hasBid)
+    {
+        if(hasBid)
+            System.out.println("Current item has a bid");
+        else
+            System.out.println("Current item does not have a bid");
+            
+        currentItemHasBid = hasBid;
+    }
+
     private AuctionServer server = null;
     private ConnectionHandler connection = null;
     private DataInputStream connectionInputStream = null;
     private ArrayBlockingQueue<Command> serverCommandQueue = null;
+    private boolean currentItemHasBid = false;
 }

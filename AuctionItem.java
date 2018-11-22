@@ -11,6 +11,13 @@ public class AuctionItem
         ID = nextID++;
     }
 
+    public AuctionItem(AuctionItem item)
+    {
+        this.name = item.getName();
+        this.description = item.getDescription();
+        this.ID = item.getID();
+    }
+
     public AuctionItem(String name, String description)
     {
         this.name = name;

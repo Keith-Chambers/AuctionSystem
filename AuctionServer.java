@@ -12,6 +12,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.util.HashMap;
 
 /* Deals with high level commands and overall management of state */
 public class AuctionServer
@@ -21,6 +22,7 @@ public class AuctionServer
         items = new ArrayBlockingQueue<AuctionItem>(ITEM_QUEUE_SIZE);
         commandQueue = new ArrayBlockingQueue<Command>(COMMAND_QUEUE_SIZE);
         activeConnections = new ArrayList<ConnectionHandler>(MAX_ACTIVE_CONNECTIONS);
+        usernameToConnectionHandlerIDMap = new HashMap<Integer, String>();
 
         start();
     }
@@ -329,12 +331,14 @@ public class AuctionServer
             long currentTimestamp = System.currentTimeMillis();
             if(currentTimestamp >= currentItemTimeoutEnd && currentItemTimeoutEnd != -1)
             {
-                /* TODO: Get winner, setup next item */
-
                 System.out.println("Current item timed out");
                 for(ConnectionHandler client : activeConnections)
                 {
-                    client.addCommand( () -> client.getCommandInterface().onItemTimedOut(items.peek(), currentItemBidWinnerUsername, currentItemBidAmount) );
+                    client.getCommandInterface().setCurrentItemHasBid(currentItemHasBid);
+
+                    System.out.println("Username in server : " + currentItemBidWinnerUsername);
+                    AuctionItem currItem = new AuctionItem(items.peek());
+                    client.addCommand( () -> client.getCommandInterface().onItemTimedOut(currItem, currentItemBidWinnerUsername, currentItemBidAmount) );
                 }
 
                 AuctionItem item = null;
@@ -349,7 +353,7 @@ public class AuctionServer
                     break;
 
                 /* No one won the item, put at end of queue */
-                if(currentItemBidWinnerUsername.length() == 0)
+                if(! currentItemHasBid)
                     items.add(item);
 
                 /*  If there are still items left to auction, setup for next item
@@ -364,6 +368,8 @@ public class AuctionServer
                     try { Thread.sleep(200); } catch(Exception e) { System.out.println("Error: " + e.toString()); }
                     terminate = true;
                 }
+
+                currentItemHasBid = false;
             }
         }
     }
@@ -378,9 +384,35 @@ public class AuctionServer
         return currentItemBidAmount;
     }
 
+    public void setCurrentWinningBidAmount(double amount)
+    {
+        currentItemBidAmount = amount;
+        System.out.println("Set bid amount to " + String.valueOf(currentItemBidAmount));
+    }
+
     public String getCurrentWinningBidUsername()
     {
         return currentItemBidWinnerUsername;
+    }
+
+    public void setCurrentWinningBidUser(int ID)
+    {
+        currentItemBidWinnerUsername = getUsernameFor(ID);
+        System.out.println("Set bid winner to " + currentItemBidWinnerUsername);
+    }
+
+    public void newCurrentItemBid(int userID, double newBid)
+    {
+        System.out.println("New bid for " + String.valueOf(newBid) + " made by " + getUsernameFor(userID));
+
+        setCurrentWinningBidUser(userID);
+        setCurrentWinningBidAmount(newBid);
+
+        /* Reset items timeout info */
+        currentItemTimeoutStart = System.currentTimeMillis();
+        currentItemTimeoutEnd = currentItemTimeoutStart + (items.peek().getTimeoutPeriod() * 1000);
+
+        currentItemHasBid = true;
     }
 
     public long getCurrentItemTimeoutStart()
@@ -398,6 +430,39 @@ public class AuctionServer
         return items.size();
     }
 
+    public ConnectionHandler getActiveConnection(int i)
+    {
+        return activeConnections.get(i);
+    }
+
+    public int getNumActiveConnections()
+    {
+        return activeConnections.size();
+    }
+
+    public boolean addUsernameFor(String username, int ID)
+    {
+        if(usernameToConnectionHandlerIDMap.containsKey(ID) || usernameToConnectionHandlerIDMap.containsValue(username))
+        {
+            System.out.println("Warning: Attempt at duplicate connectionHandler ID or username into hashmap");
+            return false;
+        }
+
+        usernameToConnectionHandlerIDMap.put(ID, username);
+
+        return true;
+    }
+
+    public boolean getCurrentItemHasBid()
+    {
+        return currentItemHasBid;
+    }
+
+    public String getUsernameFor(int ID)
+    {
+        return usernameToConnectionHandlerIDMap.get(ID);
+    }
+
     private ArrayBlockingQueue<Command> commandQueue;
     private CommandLineListener commandLineListener = null;
     private ConnectionListener connectionListener = null;
@@ -410,6 +475,8 @@ public class AuctionServer
     private Double currentItemBidAmount = -1.0;
     private String currentItemBidWinnerUsername = "";
     private long currentItemTimeoutStart;
+    private boolean currentItemHasBid;
+    private HashMap<Integer, String> usernameToConnectionHandlerIDMap;
 
     private final int ITEM_QUEUE_SIZE = 15;
     private final int COMMAND_QUEUE_SIZE = 20;

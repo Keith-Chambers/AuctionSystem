@@ -144,7 +144,7 @@ public class AuctionClient
                         /* Item timeout */
                         case 2:
                         {
-                            System.out.println("Item timed out");
+                            System.out.println("Item finished auctioning");
 
                             String winnerUsername = null;
                             String itemName = null;
@@ -154,10 +154,14 @@ public class AuctionClient
 
                             if(usernameLength != 0)
                             {
+                                System.out.println("Length != 0");
+
                                 byte[] winnerUsernameByteArray = new byte[usernameLength];
                                 connectionInputStream.read(winnerUsernameByteArray, 0, usernameLength);
                                 winnerUsername = new String(winnerUsernameByteArray);
                                 winnerBidAmount = connectionInputStream.readDouble();
+
+                                System.out.println("Complete section");
                             }
 
                             int itemNameLength = connectionInputStream.readInt();
@@ -169,7 +173,14 @@ public class AuctionClient
                             if(usernameLength == 0)
                                 System.out.println("No one won " + itemName + ". Returned to back of auction item queue");
                             else
+                            {
+                                System.out.print("User : ");
+                                System.out.println(winnerUsername);
+                                System.out.print("Bid : ");
+                                System.out.println(String.valueOf(winnerBidAmount));
+
                                 System.out.println(itemName + " was won by " + winnerUsername + " for £" + String.valueOf(winnerBidAmount));
+                            }
 
                             if(connectionInputStream.available() > 0)
                                 System.out.println("Warning: Bytes still available in input buffer after item timeout response");
