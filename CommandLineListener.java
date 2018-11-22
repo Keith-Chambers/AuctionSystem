@@ -97,6 +97,7 @@ public class CommandLineListener extends Thread
                                 /* Default invalid states */
                                 String name = null;
                                 String desc = null;
+                                double reserve = 0.0;
                                 int timeout = -1;
 
                                 /* Requires 2 params, additem and <itemName> at minimum */
@@ -119,13 +120,18 @@ public class CommandLineListener extends Thread
                                         desc = parsedString.get(i + 1);
                                     else if(parsedString.get(i).equals("-t"))
                                         timeout = Integer.parseInt(parsedString.get(i + 1));
+                                    else if(parsedString.get(i).equals("-r"))
+                                        reserve = Double.parseDouble(parsedString.get(i + 1));
                                 }
 
                                 /* Add command for the AuctionServer to process */
-                                cli.onNewItem(name, desc, timeout);
+                                cli.onNewItem(name, desc, timeout, reserve);
                                 break;
                             case "listitems":
-                                cli.onRequestItems();
+                                if(inputSegments.length > 1 && inputSegments[1].equals("-v"))
+                                    cli.onRequestItemsVerbose();
+                                else
+                                    cli.onRequestItems();
                                 break;
                             case "startauction":
                                     if(auctionRunning == true)
@@ -168,10 +174,10 @@ public class CommandLineListener extends Thread
     "Usage: command args..\n" +
     "  commands: \n" +
     "    startauction  -- starts the auction\n" +
-    "    additem <\"itemname\"> [-d <\"itemdescription\">] [-t <timeoutperiod>] -- Adds a new item at end of auction queue\n" +
+    "    additem <\"itemname\"> [-d <\"itemdescription\">] [-t <timeoutperiod>] [-r <reserveprice>] -- Adds a new item at end of auction queue\n" +
     "    loaditems <filepath> -- Loads a list of items from binary file\n" +
     "    saveitems <filepath> -- Saves current items in a file to be loaded later\n" +
-    "    listitems -- Lists all auction items in order\n" +
+    "    listitems [-v] -- Lists all auction items in order (-v is for verbose output)\n" +
     "    q -- Quits application";
 
     private BufferedReader inputReader;

@@ -55,6 +55,7 @@ public class AuctionServer
 
             /* Temp array buffer for storing integers */
             ByteBuffer intBuffer = ByteBuffer.allocate(4);
+            ByteBuffer doubleBuffer = ByteBuffer.allocate(8);
 
             intBuffer.putInt(0, itemArray.length);
             System.out.println("Putting num items as int : " + intBuffer.getInt());
@@ -71,6 +72,7 @@ public class AuctionServer
                 bytesNeeded += itemDesc.length();
                 int itemTimeoutPeriod = itemArray[i].getTimeoutPeriod();
                 bytesNeeded += 1;
+                double reserve = itemArray[i].getReserve();
 
                 /* Get and write length of item name */
                 intBuffer.putInt(0, itemName.length());
@@ -85,15 +87,15 @@ public class AuctionServer
                 fileOutput.write(intBuffer.array(), 0, 4);
                 bytesNeeded += 4;
 
-                // TODO: Remove. Just for debugging
-                if(itemDesc.getBytes(Charset.forName("UTF-8")).length != itemDesc.length())
-                    System.out.println("Warning: Convertion to byte has changed size of string");
-
                 /* Write Description string */
                 fileOutput.write(itemDesc.getBytes(Charset.forName("UTF-8")), 0, itemDesc.length());
 
                 /* Write timeout period */
                 fileOutput.write(itemTimeoutPeriod);
+
+                /* Write reserve */
+                doubleBuffer.putDouble(0, reserve);
+                fileOutput.write(doubleBuffer.array(), 0, 8);
             }
 
             System.out.println(String.valueOf(bytesNeeded) + " bytes witten to file");
@@ -134,6 +136,7 @@ public class AuctionServer
 
             /* Temp/convenience byte array to hold integers */
             byte[] tempIntByteArray = new byte[4];
+            byte[] tempDoubleByteArray = new byte[8];
 
             /* Parse file contents
                Forced to use array due to FileInputStream api */
@@ -167,8 +170,11 @@ public class AuctionServer
                 /* Ensure valid timeout period */
                 timeoutPeriod[0] = (timeoutPeriod[0] > 30 || timeoutPeriod[0] < 1) ? 30 : timeoutPeriod[0];
 
+                fileInput.read(tempDoubleByteArray, 0, 8);
+                double reserve = ByteBuffer.wrap(tempDoubleByteArray).getDouble();
+
                 /* Add item to queue */
-                items.add(new AuctionItem(new String(nameByteArray, "UTF-8"), new String(descByteArray, "UTF-8"), (int) timeoutPeriod[0]));
+                items.add(new AuctionItem(new String(nameByteArray, "UTF-8"), new String(descByteArray, "UTF-8"), (int) timeoutPeriod[0], reserve));
             }
 
             System.out.println("File successfully loaded");
@@ -233,9 +239,9 @@ public class AuctionServer
                     }
 
                     @Override
-                    public void onNewItem(String name, String desc, int timeoutPeriod)
+                    public void onNewItem(String name, String desc, int timeoutPeriod, double reserve)
                     {
-                        items.add(new AuctionItem(name, desc, timeoutPeriod));
+                        items.add(new AuctionItem(name, desc, timeoutPeriod, reserve));
                         System.out.println("New Item Added");
                     }
 
@@ -247,6 +253,25 @@ public class AuctionServer
                         while(itr.hasNext())
                         {
                             System.out.println(String.valueOf(i) + ": " + itr.next().getName());
+                            i++;
+                        }
+
+                        if(i == 1)
+                            System.out.println("No Items Found");
+                    }
+
+                    @Override
+                    public void onRequestItemsVerbose()
+                    {
+                        Iterator<AuctionItem> itr = items.iterator();
+                        int i = 1;
+                        while(itr.hasNext())
+                        {
+                            AuctionItem item = itr.next();
+                            System.out.println(String.valueOf(i) + ": " + item.getName());
+                            System.out.println("    Desc:    " + item.getDescription());
+                            System.out.println("    Timeout: " + String.valueOf(item.getTimeoutPeriod()) + " seconds");
+                            System.out.println("    Reserve: " + String.valueOf((item.hasReserve()) ? item.getReserve() : 0.0));
                             i++;
                         }
 
@@ -299,6 +324,16 @@ public class AuctionServer
         System.out.println("Shutting down Auction Server");
     }
 
+    public double getCurrentItemReserve()
+    {
+        return items.peek().getReserve();
+    }
+
+    public boolean getCurrentItemHasReserve()
+    {
+        return items.peek().hasReserve();
+    }
+
     private void run()
     {
         Command command;
@@ -307,23 +342,10 @@ public class AuctionServer
             if(commandQueue.size() > 0)
             {
                 try {
-                    // TODO: Remove
-                    int startSize = commandQueue.size();
-                    /* Take(Remove) command off queue and execute */
                     command = commandQueue.take();
                     command.execute();
-                    int endSize = commandQueue.size();
-
-                    if(startSize != endSize + 1)
-                    {
-                        System.out.println("Error: Command was not taken from queue in server");
-                    }
-
                 } catch(Exception e){
                     System.out.println("Exception: " + e.toString() );
-                    // TODO: Probably remove
-                    /* Take out bad command */
-                    try { commandQueue.take(); } catch(Exception e_){ System.out.println("Second Exception failed : " + e_.toString()); }
                 }
             }
 
@@ -331,7 +353,7 @@ public class AuctionServer
             long currentTimestamp = System.currentTimeMillis();
             if(currentTimestamp >= currentItemTimeoutEnd && currentItemTimeoutEnd != -1)
             {
-                System.out.println("Current item timed out");
+                System.out.println(items.peek().getName() + " finished auctioning");
                 for(ConnectionHandler client : activeConnections)
                 {
                     client.getCommandInterface().setCurrentItemHasBid(currentItemHasBid);

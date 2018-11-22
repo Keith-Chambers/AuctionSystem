@@ -111,7 +111,7 @@ public class AuctionClient
                             }
                             break;
                         default:
-                            System.out.println("Usage: options\n q -- Quit\nlist-items -- Lists Auction Items\nbid <amount> -- Bid on Current Item");
+                            System.out.println("Usage: options\n q -- Quit\nlistitems -- Lists Auction Items\nbid <amount> -- Bid on Current Item");
                     }
 
                     out.flush();
@@ -233,17 +233,19 @@ public class AuctionClient
                                 connectionInputStream.read(itemDescByteArray, 0, itemDescLength);
 
                                 int timeoutPeriod = (int) connectionInputStream.readByte();
+                                double reserve = connectionInputStream.readDouble();
 
                                 System.out.println("Item #" + String.valueOf(i + 1));
 
 
                                 items[i] = new AuctionItem( new String(itemNameByteArray, "UTF-8"),
                                                             new String(itemDescByteArray, "UTF-8"),
-                                                            timeoutPeriod);
+                                                            timeoutPeriod, reserve);
 
                                 System.out.println("    Name : " + items[i].getName());
                                 System.out.println("    Desc : " + items[i].getDescription());
                                 System.out.println("    Timeout Seconds : " + String.valueOf(items[i].getTimeoutPeriod()));
+                                System.out.println("    Reserve: " + String.valueOf(items[i].getReserve()));
                             }
 
                             System.out.println("State updated from server successfully");

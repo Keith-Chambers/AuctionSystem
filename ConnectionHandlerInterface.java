@@ -133,8 +133,12 @@ public class ConnectionHandlerInterface
         {
             double bidAmount = connectionInputStream.readDouble();
             System.out.println("Client bid £" + String.valueOf(bidAmount));
+            double currentItemReserve = (server.getCurrentItemHasReserve()) ? server.getCurrentItemReserve() : 0.0;
 
-            if( ! currentItemHasBid || bidAmount > server.getCurrentWinningBidAmount())
+            /*  If the current item has been bidded on
+                and the requested bid amount exceeds both the current bid amount and reserve
+                Then process the new bid. Otherwise, trigger onInvalidBid(Which will send a message to client) */
+            if( ! currentItemHasBid || ( bidAmount > server.getCurrentWinningBidAmount() && bidAmount >= currentItemReserve) )
             {
                 server.newCurrentItemBid(connection.getID(), bidAmount);
             } else
@@ -214,6 +218,7 @@ public class ConnectionHandlerInterface
             ByteBuffer intBuffer = ByteBuffer.allocate(4);
 
             ByteBuffer longBuffer = ByteBuffer.allocate(8);
+            ByteBuffer doubleBuffer = ByteBuffer.allocate(8);
 
             long currItemTimeoutStart = server.getCurrentItemTimeoutStart();
             longBuffer.putLong(0, currItemTimeoutStart);
@@ -236,7 +241,6 @@ public class ConnectionHandlerInterface
                 out.write(currBidWinnerUsername.getBytes(), 0, currBidWinnerUsername.length());
 
                 Double currBidAmount = server.getCurrentWinningBidAmount();
-                ByteBuffer doubleBuffer = ByteBuffer.allocate(8);
                 doubleBuffer.putDouble(0, currBidAmount);
 
                 out.write(doubleBuffer.array(), 0, 8);
@@ -249,9 +253,12 @@ public class ConnectionHandlerInterface
 
             for(int i = 0; i < server.getNumItems(); i++)
             {
-                String itemName = server.getItem(i).getName();
-                String itemDesc = server.getItem(i).getDescription();
-                int itemTimeoutPeriod = server.getItem(i).getTimeoutPeriod();
+                AuctionItem currentItem = server.getItem(i);
+
+                String itemName = currentItem.getName();
+                String itemDesc = currentItem.getDescription();
+                int itemTimeoutPeriod = currentItem.getTimeoutPeriod();
+                double reserve = (currentItem.hasReserve()) ? currentItem.getReserve() : 0.0;
 
                 /* Get and write length of item name */
                 intBuffer.putInt(0, itemName.length());
@@ -269,6 +276,10 @@ public class ConnectionHandlerInterface
 
                 /* Write timeout period */
                 out.write(itemTimeoutPeriod);
+
+                /* Write item reserve price */
+                doubleBuffer.putDouble(0, reserve);
+                out.write(doubleBuffer.array(), 0, 8);
             }
 
             out.flush();
@@ -351,7 +362,7 @@ public class ConnectionHandlerInterface
             System.out.println("Current item has a bid");
         else
             System.out.println("Current item does not have a bid");
-            
+
         currentItemHasBid = hasBid;
     }
 

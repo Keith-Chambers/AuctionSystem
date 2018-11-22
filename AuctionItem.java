@@ -36,7 +36,7 @@ public class AuctionItem
         ID = nextID++;
     }
 
-    public AuctionItem(String name, String description, int timeoutPeriod)
+    public AuctionItem(String name, String description, int timeoutPeriod, double reserve)
     {
         this.name = name;
         this.timeoutPeriod = timeoutPeriod;
@@ -44,6 +44,7 @@ public class AuctionItem
         /* Assign suitable defaults if invalid parameters are passed */
         this.description = (description != null) ? description : DEFAULT_DESC;
         this.timeoutPeriod = (timeoutPeriod != -1) ? timeoutPeriod : DEFAULT_TIMEOUT_PERIOD;
+        this.reserve = reserve;
 
         ID = nextID++;
     }
@@ -57,6 +58,16 @@ public class AuctionItem
     public String getName()
     {
         return name;
+    }
+
+    public double getReserve()
+    {
+        return reserve;
+    }
+
+    public boolean hasReserve()
+    {
+        return (reserve > 0.0);
     }
 
     public String getDescription()
@@ -77,4 +88,5 @@ public class AuctionItem
     private final int ID;
     private String DEFAULT_DESC = "No Description";
     private String description;
+    private double reserve;
 }
