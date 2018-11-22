@@ -88,7 +88,10 @@ public class CommandLineListener extends Thread
                     {
                         switch(inputSegments[0])
                         {
+                            /* Only on Unix */
                             case "clear":
+                                /*  Escape code to clear screen
+                                    Taken from: https://stackoverflow.com/questions/10241217/how-to-clear-console-in-java */
                                 System.out.print("\033[H\033[2J");
                                 break;
                             case "additem":
@@ -110,18 +113,26 @@ public class CommandLineListener extends Thread
                                 /* We know the location of item name as it is required */
                                 name = parsedString.get(1);
 
-                                System.out.println("Parsed name : \"" + name + "\"");
-
                                 /* Check the order of the optional parameters and parse */
-                                for(int i = 2; i < parsedString.size(); i++)
+                                for(int i = 2; i < parsedString.size(); i += 2)
                                 {
-                                    System.out.println(parsedString.get(i));
                                     if(parsedString.get(i).equals("-d"))
                                         desc = parsedString.get(i + 1);
                                     else if(parsedString.get(i).equals("-t"))
                                         timeout = Integer.parseInt(parsedString.get(i + 1));
                                     else if(parsedString.get(i).equals("-r"))
                                         reserve = Double.parseDouble(parsedString.get(i + 1));
+                                }
+
+                                /* Enforce min and max bid timeout periods for items */
+                                if(timeout != -1 && timeout > MAX_TIMEOUT_PERIOD)
+                                {
+                                    System.out.println("Warning: Timeout automatically clamped to max(" + String.valueOf(MAX_TIMEOUT_PERIOD) + " seconds)");
+                                    timeout = MAX_TIMEOUT_PERIOD;
+                                } else if(timeout != -1 &&timeout < MIN_TIMEOUT_PERIOD)
+                                {
+                                    System.out.println("Warning: Timeout automatically clamped to min(" + String.valueOf(MIN_TIMEOUT_PERIOD) + " seconds)");
+                                    timeout = MIN_TIMEOUT_PERIOD;
                                 }
 
                                 /* Add command for the AuctionServer to process */
@@ -183,4 +194,6 @@ public class CommandLineListener extends Thread
     private BufferedReader inputReader;
     private final String COMMAND_PROMPT = "AS>";
     private boolean auctionRunning = false;
+    private int MAX_TIMEOUT_PERIOD = 60;
+    private int MIN_TIMEOUT_PERIOD = 10;
 }

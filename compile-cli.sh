@@ -1,1 +1,1 @@
-javac -d . AuctionClient.java
+javac -d . AuctionClient.java AuctionClientDriver.java

@@ -38,7 +38,7 @@ public class ConnectionHandlerInterface
 
     public void onClientRequest()
     {
-        System.out.println("Processing onClientRequest in Server Object");
+        // System.out.println("Processing onClientRequest in Server Object");
         connectionInputStream = connection.getInputStream();
 
         try
@@ -61,15 +61,14 @@ public class ConnectionHandlerInterface
                 return;
             }
 
-            System.out.print("Getting key byte(" + String.valueOf(connectionInputStream.available()) + ") : ");
+            //System.out.print("Getting key byte(" + String.valueOf(connectionInputStream.available()) + ") : ");
             byte inputCode = connectionInputStream.readByte();
-            System.out.println("success");
+            //System.out.println("success");
 
             switch(inputCode)
             {
             /* Termination code */
             case 0:
-                System.out.println("Terminating connection in switch");
                 connection.terminate();
                 break;
 
@@ -96,7 +95,7 @@ public class ConnectionHandlerInterface
     /* Initial connection + username assignment */
     private void onUserConnectionRequest()
     {
-        System.out.println("Entering initial connection code on server");
+        //System.out.println("Entering initial connection code on server");
 
         String username = null;
 
@@ -109,15 +108,13 @@ public class ConnectionHandlerInterface
                 username = "DefaultUsername" + String.valueOf(connection.getID());
             }else
             {
-                System.out.println("Username of length: " + String.valueOf(usernameLength));
                 byte[] usernameByteString = new byte[usernameLength];
                 connectionInputStream.read(usernameByteString, 0, usernameLength);
                 username = new String(usernameByteString, "UTF-8");
             }
 
             server.addUsernameFor(username, connection.getID());
-
-            System.out.println("User connected : " + username);
+            System.out.println(username + " connected to the server");
 
         } catch(Exception e){ System.out.println("Error: " + e.toString()); }
     }
@@ -132,7 +129,10 @@ public class ConnectionHandlerInterface
         try
         {
             double bidAmount = connectionInputStream.readDouble();
-            System.out.println("Client bid £" + String.valueOf(bidAmount));
+            String username = server.getUsernameFor(connection.getID());
+
+            System.out.println(username + " bid £" + String.valueOf(bidAmount) + " on " + server.getCurrentItem().getName());
+
             double currentItemReserve = (server.getCurrentItemHasReserve()) ? server.getCurrentItemReserve() : 0.0;
 
             /*  If the current item has been bidded on
@@ -297,8 +297,8 @@ public class ConnectionHandlerInterface
 
     public void onItemTimedOut(AuctionItem item, String winnerUsername, double winnerBidAmount)
     {
-        System.out.println("Time out code executed; amount -> " + String.valueOf(winnerBidAmount));
-        System.out.println("Username : " + winnerUsername);
+        //System.out.println("Time out code executed; amount -> " + String.valueOf(winnerBidAmount));
+        //System.out.println("Username : " + winnerUsername);
 
         DataOutputStream out = connection.getOutputStream();
 
@@ -358,11 +358,6 @@ public class ConnectionHandlerInterface
 
     public void setCurrentItemHasBid(boolean hasBid)
     {
-        if(hasBid)
-            System.out.println("Current item has a bid");
-        else
-            System.out.println("Current item does not have a bid");
-
         currentItemHasBid = hasBid;
     }
 

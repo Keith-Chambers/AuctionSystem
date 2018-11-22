@@ -1,1 +1,1 @@
-java -cp . ie/keithchambers/AuctionClient $1 $2
+java -cp . ie/keithchambers/AuctionClientDriver $1 $2

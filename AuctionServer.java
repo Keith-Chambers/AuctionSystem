@@ -1,13 +1,9 @@
 package ie.keithchambers;
 
 import java.util.concurrent.ArrayBlockingQueue;
-import java.io.BufferedWriter;
-import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.net.Socket;
 import java.util.Iterator;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
@@ -40,9 +36,13 @@ public class AuctionServer
 
     public void saveItemsToFile(String filePath)
     {
-        System.out.println("Saving items to file");
         if(items.size() == 0)
+        {
+            System.out.println("No items to save");
             return;
+        }
+
+        System.out.println("Saving items to file");
 
         FileOutputStream fileOutput = null;
         int bytesNeeded = 0;
@@ -118,7 +118,7 @@ public class AuctionServer
     public void loadItemsFromFile(String filePath)
     {
         FileInputStream fileInput = null;
-        System.out.println("Loading items from file");
+        System.out.print("Loading items from file: ");
 
         try
         {
@@ -132,8 +132,6 @@ public class AuctionServer
                 return;
             }
 
-            System.out.println("File of size " + String.valueOf(fileSize) + " bytes");
-
             /* Temp/convenience byte array to hold integers */
             byte[] tempIntByteArray = new byte[4];
             byte[] tempDoubleByteArray = new byte[8];
@@ -144,7 +142,6 @@ public class AuctionServer
                 System.out.println("Warning: Failed to read 4 bytes from file");
 
             int numberOfItems = ByteBuffer.wrap(tempIntByteArray).getInt();
-            System.out.println(String.valueOf(numberOfItems) + " items found in file");
 
             /* For each item described in the file */
             for(byte i = 0; i < numberOfItems; i++)
@@ -173,11 +170,16 @@ public class AuctionServer
                 fileInput.read(tempDoubleByteArray, 0, 8);
                 double reserve = ByteBuffer.wrap(tempDoubleByteArray).getDouble();
 
-                /* Add item to queue */
-                items.add(new AuctionItem(new String(nameByteArray, "UTF-8"), new String(descByteArray, "UTF-8"), (int) timeoutPeriod[0], reserve));
+                AuctionItem item = new AuctionItem(new String(nameByteArray, "UTF-8"), new String(descByteArray, "UTF-8"), (int) timeoutPeriod[0], reserve);
+
+                /* Add item to queue if unique*/
+                if(! itemExists(item))
+                    items.add(item);
+                else
+                    System.out.println("Warning: " + item.getName() + " already exists");
             }
 
-            System.out.println("File successfully loaded");
+            System.out.println("Success (" + String.valueOf(numberOfItems) + " items / " + String.valueOf(fileSize) + " bytes)");
 
         } catch(Exception e)
         {
@@ -241,8 +243,16 @@ public class AuctionServer
                     @Override
                     public void onNewItem(String name, String desc, int timeoutPeriod, double reserve)
                     {
-                        items.add(new AuctionItem(name, desc, timeoutPeriod, reserve));
-                        System.out.println("New Item Added");
+                        AuctionItem item = new AuctionItem(name, desc, timeoutPeriod, reserve);
+
+                        if(! itemExists(item))
+                        {
+                            items.add(new AuctionItem(name, desc, timeoutPeriod, reserve));
+                            System.out.println("\"" + name + "\" Added");
+                        } else
+                        {
+                            System.out.println(item.getName() + " already exists");
+                        }
                     }
 
                     @Override
@@ -257,7 +267,7 @@ public class AuctionServer
                         }
 
                         if(i == 1)
-                            System.out.println("No Items Found");
+                            System.out.println("No Items");
                     }
 
                     @Override
@@ -324,6 +334,20 @@ public class AuctionServer
         System.out.println("Shutting down Auction Server");
     }
 
+    public boolean itemExists(AuctionItem item)
+    {
+        Iterator<AuctionItem> itr = items.iterator();
+
+        while(itr.hasNext())
+        {
+            AuctionItem currItem = itr.next();
+            if(currItem.getName().equals(item.getName()))
+                return true;
+        }
+
+        return false;
+    }
+
     public double getCurrentItemReserve()
     {
         return items.peek().getReserve();
@@ -353,12 +377,17 @@ public class AuctionServer
             long currentTimestamp = System.currentTimeMillis();
             if(currentTimestamp >= currentItemTimeoutEnd && currentItemTimeoutEnd != -1)
             {
-                System.out.println(items.peek().getName() + " finished auctioning");
+                if(! currentItemHasBid)
+                    System.out.println(items.peek().getName() + " finished auctioning unbought.");
+                else
+                    System.out.println(items.peek().getName() + " was sold to " + currentItemBidWinnerUsername + " for £" + String.valueOf(currentItemBidAmount));
+
+                /* Loop through each client connection and inform them the current item has finished auctioning */
                 for(ConnectionHandler client : activeConnections)
                 {
                     client.getCommandInterface().setCurrentItemHasBid(currentItemHasBid);
 
-                    System.out.println("Username in server : " + currentItemBidWinnerUsername);
+                    /* Lambdas in Java use pass by reference so we need to create a new cloned object */
                     AuctionItem currItem = new AuctionItem(items.peek());
                     client.addCommand( () -> client.getCommandInterface().onItemTimedOut(currItem, currentItemBidWinnerUsername, currentItemBidAmount) );
                 }
@@ -409,7 +438,6 @@ public class AuctionServer
     public void setCurrentWinningBidAmount(double amount)
     {
         currentItemBidAmount = amount;
-        System.out.println("Set bid amount to " + String.valueOf(currentItemBidAmount));
     }
 
     public String getCurrentWinningBidUsername()
@@ -420,13 +448,10 @@ public class AuctionServer
     public void setCurrentWinningBidUser(int ID)
     {
         currentItemBidWinnerUsername = getUsernameFor(ID);
-        System.out.println("Set bid winner to " + currentItemBidWinnerUsername);
     }
 
     public void newCurrentItemBid(int userID, double newBid)
     {
-        System.out.println("New bid for " + String.valueOf(newBid) + " made by " + getUsernameFor(userID));
-
         setCurrentWinningBidUser(userID);
         setCurrentWinningBidAmount(newBid);
 
@@ -480,6 +505,14 @@ public class AuctionServer
         return currentItemHasBid;
     }
 
+    public AuctionItem getCurrentItem()
+    {
+        if(items.size() > 0)
+            return items.peek();
+        else
+            return null;
+     }
+
     public String getUsernameFor(int ID)
     {
         return usernameToConnectionHandlerIDMap.get(ID);
@@ -497,7 +530,7 @@ public class AuctionServer
     private Double currentItemBidAmount = -1.0;
     private String currentItemBidWinnerUsername = "";
     private long currentItemTimeoutStart;
-    private boolean currentItemHasBid;
+    private boolean currentItemHasBid = false;
     private HashMap<Integer, String> usernameToConnectionHandlerIDMap;
 
     private final int ITEM_QUEUE_SIZE = 15;
