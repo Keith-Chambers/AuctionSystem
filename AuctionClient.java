@@ -97,7 +97,7 @@ public class AuctionClient
                             terminate = true;
                             out.writeByte(0);
                             break;
-                        case "list-items":
+                        case "listitems":
                             out.writeByte(1);
                             break;
                         case "bid":
@@ -173,7 +173,7 @@ public class AuctionClient
 
                             if(connectionInputStream.available() > 0)
                                 System.out.println("Warning: Bytes still available in input buffer after item timeout response");
-                                
+
                             break;
                         }
                         /* Auction state */

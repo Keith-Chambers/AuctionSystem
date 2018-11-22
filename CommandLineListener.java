@@ -40,7 +40,7 @@ public class CommandLineListener extends Thread
                 continue;
             }
 
-            // Invert inQuotes and continue
+            // Toggle inQuotes and continue
             if(input.charAt(i) == '\"')
             {
                 inQuotes = ! inQuotes;
@@ -159,8 +159,6 @@ public class CommandLineListener extends Thread
                 Thread.sleep(100);
 
             } catch (Exception e){ System.out.println("Exception: " + e.toString()); }
-
-            // Split input and create a command
         }
     }
 

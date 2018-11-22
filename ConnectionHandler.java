@@ -12,7 +12,8 @@ public class ConnectionHandler extends Thread
         ID = nextID++;
         this.connection = connection;
         serverInterface = serverCallbacks;
-        serverInterface.setConnectionHandlerOnce(this);
+        if(! serverInterface.setConnectionHandlerOnce(this))
+            System.out.println("Warning: Failed to pass connection handler to server interface obj");
 
         connectionCommandQueue = new ArrayBlockingQueue<Command>(MAX_COMMAND_QUEUE_SIZE);
 
@@ -53,6 +54,9 @@ public class ConnectionHandler extends Thread
 
     public void run()
     {
+        /* Send current Auction state to client */
+        serverInterface.onConnectionCreation();
+
         while(! terminated)
         {
             try
